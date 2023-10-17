@@ -1,0 +1,16 @@
+#include <stdio.h>
+#include <stdlib.h>
+
+void	run() {
+	char	buffer[] = "Good... Wait what?\n";
+
+	fwrite(buffer, sizeof(char), sizeof(buffer), stdout);
+	system("/bin/sh");
+}
+
+int	main() {
+	char	buffer[75];
+
+	gets(buffer);
+	return 0;
+}
