@@ -101,7 +101,7 @@ Program received signal SIGSEGV, Segmentation fault.
 0xb7004242 in ?? ()
 
 # As we can see, when we execute the program with 78 chars, the function at address 0xb7004242 does not exists, it's our 'B' char
-# We can try our exploit on the range of 76 and 80 chars (the size of an address is 4 bytes 0x 0xXXXX)
+# We can try our exploit on the range of 76 and 80 chars (the size of an address is 4 bytes 0x 0xXXXXXXXX)
 # Let's find the address of run function with gdb
 
 disas run

