@@ -1,0 +1,38 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+char g_cFileContent[68];
+
+int m()
+{
+	time_t v0;
+
+	v0 = time(0);
+	return printf("%s - %d\n", g_cFileContent, v0);
+}
+
+int main(int argc, const char **argv, const char **envp)
+{
+	FILE* file;
+	int   *first;
+	int   *second;
+
+	first = malloc(8);
+	second = malloc(8);
+
+	first[0] = 1;
+	second[0] = 2;
+
+	first[1] = (int)malloc(8);
+	second[1] = (int)malloc(8);
+
+	strcpy((char *)first[1], argv[1]);
+	strcpy((char *)second[1], argv[2]);
+
+	file = fopen("/home/user/level8/.pass", "r");
+	fgets(g_cFileContent, 68, file);
+	puts("~~");
+	return 0;
+}

