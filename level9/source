@@ -1,0 +1,53 @@
+#include <cstddef>
+#include <cstring>
+#include <stdlib.h>
+
+class N {
+	public:
+		N(int theThing);
+
+		void*	setAnnotation(char *annotation);
+
+		int	operator+(const N &something);
+		int	operator-(const N &something);
+
+	private:
+		int		_something;
+		char	_annotation[100];
+};
+
+N::N(int theThing) {
+	this->_something = theThing;
+}
+
+void*	N::setAnnotation(char *annotation) {
+	size_t	strLenght;
+
+	strLenght = strlen(annotation);
+	return (memcpy(this->_annotation, annotation, strLenght));
+}
+
+int	N::operator+(const N &something) {
+	return this->_something + something._something;
+}
+
+int	N::operator-(const N &something) {
+	return this->_something - something._something;
+}
+
+int main(int argc, const char **argv, const char **envp)
+{
+	N	*first;
+	N	*second;
+	N	*third;
+
+	if (argc <= 1)
+		exit(1);
+
+	first = new N(5);
+	second = new N(6);
+	third = first;
+	
+	third->setAnnotation((char *)argv[1]);
+	return 0;
+}

