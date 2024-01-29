@@ -1,0 +1,20 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+int main(int ac, char** av)
+{
+	int nb = atoi(av[1]);
+	
+	if (nb == 423)
+	{
+		char *args[] = {"/bin/sh", NULL};
+		execv("/bin/sh", args);
+	} else 
+	{
+		char str[] = "No !\n";
+		fwrite(str, sizeof(char), sizeof(str) - 1, stdout);
+	}
+
+	return 0;
+}
