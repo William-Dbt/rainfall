@@ -68,7 +68,7 @@ level5@RainFall:~$ ./level5
 AAAA %x %x %x %x %x %x %x
 AAAA 200 b7fd1ac0 b7ff37d0 41414141 20782520 25207825 78252078
 
-# The next instruction is executed on the 4th parameter
+# The next instruction can be executed on the 4th parameter
 # We'll try to write the address of o with the address of exit
 # To do that we'll take the decimal address of 'o' and use the '$n' modifier of printf
 # The address in decimal of 'o' (0x080484a4) is: 134513828 (thanks google (hexa to decimal))
